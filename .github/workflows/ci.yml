@@ -1,0 +1,76 @@
+name: CI and security gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm run check
+      - run: npm test
+
+  sast:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v6
+      - run: semgrep scan --config p/javascript --config p/owasp-top-ten --error
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          push: false
+          tags: sentinel-flow:ci
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: sentinel-flow:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+      - uses: anchore/sbom-action@v0.24.0
+        with:
+          image: sentinel-flow:ci
+          artifact-name: sentinel-flow.spdx.json
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: docker compose up -d --build
+      - run: |
+          for attempt in {1..30}; do
+            curl --fail http://127.0.0.1:4000/api/health && exit 0
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - run: curl --fail http://127.0.0.1:4000/api/summary
+      - if: always()
+        run: docker compose down

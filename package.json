@@ -1,0 +1,15 @@
+{
+  "name": "sentinel-flow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DevSecOps security orchestration platform for portfolio demonstrations.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check src/public/app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

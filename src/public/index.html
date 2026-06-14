@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sentinel Flow DevSecOps security orchestration platform.">
+    <title>Sentinel Flow</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">SF</span>
+          <span><strong>Sentinel Flow</strong><small>DevSecOps control plane</small></span>
+        </div>
+        <nav class="nav" aria-label="Primary navigation">
+          <button class="nav-item active" type="button" data-view="overview">Overview</button>
+          <button class="nav-item" type="button" data-view="pipelines">Pipelines</button>
+          <button class="nav-item" type="button" data-view="findings">Findings</button>
+          <button class="nav-item" type="button" data-view="policies">Policies</button>
+          <button class="nav-item" type="button" data-view="exceptions">Exceptions</button>
+        </nav>
+        <div class="sidebar-status"><span></span>All services operational</div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Acme engineering organization</p>
+            <h1 id="page-title">Security overview</h1>
+          </div>
+          <div class="top-actions">
+            <label class="role-control">Demo role
+              <select id="role-select">
+                <option value="security">Security engineer</option>
+                <option value="developer">Developer</option>
+                <option value="manager">Engineering manager</option>
+              </select>
+            </label>
+            <button class="button button-primary" id="ingest-button" type="button">Ingest report</button>
+          </div>
+        </header>
+
+        <section class="view" id="view-overview">
+          <div class="metrics" id="metrics"></div>
+          <div class="overview-grid">
+            <article class="panel trend-panel">
+              <header class="panel-header"><div><p class="eyebrow">Risk movement</p><h2>Finding trend</h2></div><span>Last 4 weeks</span></header>
+              <div class="trend-chart" id="trend-chart"></div>
+            </article>
+            <article class="panel severity-panel">
+              <header class="panel-header"><div><p class="eyebrow">Current exposure</p><h2>Open by severity</h2></div></header>
+              <div class="severity-chart" id="severity-chart"></div>
+            </article>
+            <article class="panel recent-runs-panel">
+              <header class="panel-header"><div><p class="eyebrow">Delivery gates</p><h2>Recent pipeline runs</h2></div><button class="link-button" data-open-view="pipelines" type="button">View all</button></header>
+              <div class="compact-table" id="recent-runs"></div>
+            </article>
+            <article class="panel priority-panel">
+              <header class="panel-header"><div><p class="eyebrow">Action queue</p><h2>Priority findings</h2></div><button class="link-button" data-open-view="findings" type="button">Triage</button></header>
+              <div id="priority-findings"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view hidden" id="view-pipelines">
+          <div class="toolbar">
+            <div class="toolbar-copy"><strong>Pipeline runs</strong><span>Policy decisions across protected repositories</span></div>
+            <label>Project<select id="run-project-filter"><option value="">All projects</option></select></label>
+          </div>
+          <article class="panel table-panel"><div class="data-table" id="runs-table"></div></article>
+        </section>
+
+        <section class="view hidden" id="view-findings">
+          <div class="toolbar">
+            <div class="toolbar-copy"><strong>Finding backlog</strong><span>Prioritized by exploitability, severity and SLA</span></div>
+            <label>Severity<select id="severity-filter"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select></label>
+            <label>Status<select id="status-filter"><option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="accepted">Accepted</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></label>
+          </div>
+          <article class="panel table-panel"><div class="data-table" id="findings-table"></div></article>
+        </section>
+
+        <section class="view hidden" id="view-policies">
+          <div class="section-intro"><div><p class="eyebrow">Policy as code</p><h2>Merge and release gates</h2></div><p>Thresholds are evaluated against every run after approved, non-expired exceptions are removed.</p></div>
+          <div id="policies-list"></div>
+        </section>
+
+        <section class="view hidden" id="view-exceptions">
+          <div class="section-intro"><div><p class="eyebrow">Risk governance</p><h2>Time-bound exceptions</h2></div><button class="button button-primary" id="request-exception-button" type="button">Request exception</button></div>
+          <div class="exception-grid" id="exceptions-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <aside class="drawer hidden" id="drawer" aria-label="Detail panel">
+      <div class="drawer-header"><div><p class="eyebrow" id="drawer-eyebrow"></p><h2 id="drawer-title"></h2></div><button class="icon-button" id="drawer-close" type="button" aria-label="Close">×</button></div>
+      <div class="drawer-body" id="drawer-body"></div>
+    </aside>
+    <div class="scrim hidden" id="scrim"></div>
+
+    <dialog id="ingest-dialog">
+      <form method="dialog" class="dialog-form" id="ingest-form">
+        <header><div><p class="eyebrow">Scanner integration</p><h2>Ingest security report</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></header>
+        <label>Project<select id="ingest-project" required></select></label>
+        <label>Scanner<select id="ingest-tool"><option value="semgrep">Semgrep SAST</option><option value="trivy-sca">Trivy SCA</option><option value="trivy-container">Trivy container</option><option value="gitleaks">Gitleaks</option></select></label>
+        <label>Report JSON<textarea id="ingest-report" rows="9" spellcheck="false" required></textarea></label>
+        <p class="form-message" id="ingest-message"></p>
+        <footer><button class="button button-secondary" value="cancel">Cancel</button><button class="button button-primary" id="submit-ingest" type="submit">Evaluate report</button></footer>
+      </form>
+    </dialog>
+
+    <dialog id="exception-dialog">
+      <form method="dialog" class="dialog-form" id="exception-form">
+        <header><div><p class="eyebrow">Risk acceptance</p><h2>Request exception</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></header>
+        <label>Finding<select id="exception-finding" required></select></label>
+        <label>Reason<textarea id="exception-reason" rows="3" required></textarea></label>
+        <label>Compensating control<textarea id="exception-control" rows="3" required></textarea></label>
+        <label>Expiration<input id="exception-expiration" type="date" required></label>
+        <p class="form-message" id="exception-message"></p>
+        <footer><button class="button button-secondary" value="cancel">Cancel</button><button class="button button-primary" type="submit">Submit request</button></footer>
+      </form>
+    </dialog>
+
+    <div class="toast hidden" id="toast" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
