@@ -2,7 +2,9 @@ FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
-RUN addgroup -S sentinel && adduser -S -G sentinel sentinel
+RUN apk upgrade --no-cache \
+    && addgroup -S sentinel \
+    && adduser -S -G sentinel sentinel
 COPY --chown=sentinel:sentinel package.json ./
 COPY --chown=sentinel:sentinel src ./src
 
