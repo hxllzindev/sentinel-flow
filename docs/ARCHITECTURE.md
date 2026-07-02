@@ -32,7 +32,10 @@ flowchart TB
 
 - `normalizers.js`: translates scanner-specific JSON into one finding contract.
 - `policy-engine.js`: pure, deterministic decision function with no HTTP or storage dependency.
-- `server.js`: API authorization, workflow orchestration and audit events.
+- `server.js`: HTTP server composition and static/API dispatch.
+- `api.js`: route handlers, workflow orchestration and audit events.
+- `auth.js`: demo role extraction and server-side authorization checks.
+- `http.js`: JSON parsing, static file serving and defensive headers.
 - `data.js`: deterministic seed dataset for portfolio demonstrations.
 - `public/`: operational frontend with no build step.
 
