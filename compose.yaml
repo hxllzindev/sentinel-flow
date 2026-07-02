@@ -2,8 +2,8 @@ services:
   sentinel-flow:
     build: .
     environment:
-      PORT: 4000
-      NODE_ENV: production
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:4000
     ports:
       - "4000:4000"
     read_only: true

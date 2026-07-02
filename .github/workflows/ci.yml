@@ -13,11 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-dotnet@v5
         with:
-          node-version: 24
-      - run: npm run check
-      - run: npm test
+          dotnet-version: 10.0.x
+      - run: dotnet restore SentinelFlow.sln
+      - run: dotnet build SentinelFlow.sln --configuration Release --no-restore
+      - run: dotnet test SentinelFlow.sln --configuration Release --no-build
 
   sast:
     runs-on: ubuntu-latest
@@ -25,7 +26,7 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@v6
-      - run: semgrep scan --config p/javascript --config p/owasp-top-ten --error
+      - run: semgrep scan --config p/csharp --config p/owasp-top-ten --error
 
   secrets:
     runs-on: ubuntu-latest
