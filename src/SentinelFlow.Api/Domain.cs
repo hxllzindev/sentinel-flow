@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace SentinelFlow.Api;
 
@@ -9,12 +10,41 @@ public static class JsonDefaults
 
 public sealed class SecurityStore
 {
+    public SemaphoreSlim Gate { get; } = new(1, 1);
     public List<Project> Projects { get; init; } = [];
     public List<PipelineRun> Runs { get; init; } = [];
     public List<Finding> Findings { get; init; } = [];
     public List<Policy> Policies { get; init; } = [];
     public List<RiskException> Exceptions { get; init; } = [];
     public List<AuditEvent> Audit { get; init; } = [];
+
+    public void AddAudit(AuditEvent auditEvent)
+    {
+        Audit.Insert(0, auditEvent);
+        if (Audit.Count > 1000) Audit.RemoveRange(1000, Audit.Count - 1000);
+    }
+}
+
+public static partial class InputSanitizer
+{
+    public static string Text(string? value, int maxLength, string fallback = "")
+    {
+        var clean = ControlCharacters().Replace(value ?? "", "").Trim();
+        clean = SecretValue().Replace(clean, "$1=[REDACTED]");
+        if (string.IsNullOrWhiteSpace(clean)) clean = fallback;
+        return clean[..Math.Min(clean.Length, maxLength)];
+    }
+
+    public static bool Identifier(string value) => SafeIdentifier().IsMatch(value);
+
+    [GeneratedRegex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]")]
+    private static partial Regex ControlCharacters();
+
+    [GeneratedRegex("(?i)\\b(password|passwd|pwd|secret|token|api[_-]?key|authorization)\\s*[:=]\\s*[^\\s,;&]+")]
+    private static partial Regex SecretValue();
+
+    [GeneratedRegex("^[A-Za-z0-9._-]{1,120}$")]
+    private static partial Regex SafeIdentifier();
 }
 
 public sealed record Project(string Id, string Name, string Owner, string Environment, string DefaultBranch);
@@ -82,14 +112,13 @@ public sealed class RiskException
         Id = $"exception-{Guid.NewGuid()}",
         FindingId = finding.Id,
         ProjectId = finding.ProjectId,
-        RequestedBy = Trim(input.RequestedBy, "Current user", 120),
-        Reason = Trim(input.Reason, "No reason supplied", 600),
-        CompensatingControl = Trim(input.CompensatingControl, "No compensating control supplied", 600),
+        RequestedBy = InputSanitizer.Text(input.RequestedBy, 120, "Current user"),
+        Reason = InputSanitizer.Text(input.Reason, 600, "No reason supplied"),
+        CompensatingControl = InputSanitizer.Text(input.CompensatingControl, 600, "No compensating control supplied"),
         CreatedAt = DateTimeOffset.UtcNow.ToString("O"),
         ExpiresAt = expiresAt.ToUniversalTime().ToString("O")
     };
 
-    private static string Trim(string? value, string fallback, int max) => string.IsNullOrWhiteSpace(value) ? fallback : value[..Math.Min(value.Length, max)];
 }
 
 public sealed record AuditEvent(string Id, string Action, string ActorRole, object Details, string CreatedAt)
@@ -99,6 +128,11 @@ public sealed record AuditEvent(string Id, string Action, string ActorRole, obje
 
 public sealed record PolicyDecision(string Decision, Dictionary<string, int> Counts, List<string> MissingScanners, List<string> Violations, int EvaluatedFindings, int ExemptedFindings, int RiskScore);
 public sealed record EnrichedRun(string Id, string ProjectId, string Branch, string Commit, string Author, string Status, string CreatedAt, int DurationSeconds, List<ScannerExecution> Scanners, Project? Project, PolicyDecision Decision);
+public sealed record FrontendProject(string Id, string Label, string Environment);
+public sealed record FrontendRun(string Id, string ProjectId, string ProjectLabel, string Status, string CreatedAt, int DurationSeconds, List<ScannerExecution> Scanners, PolicyDecision Decision);
+public sealed record FrontendFinding(string Id, string ProjectId, string ProjectLabel, string Scanner, string Severity, string Category, string Status, string SlaDueAt);
+public sealed record FrontendException(string Id, string ProjectId, string ProjectLabel, string Status, string CreatedAt, string ExpiresAt);
+public sealed record FrontendAuditEvent(string Action, string ActorRole, string CreatedAt);
 
 public sealed class FindingUpdate { public string? Status { get; init; } public string? Owner { get; init; } }
 public sealed class PolicyUpdate { public Dictionary<string, int> Thresholds { get; init; } = []; }

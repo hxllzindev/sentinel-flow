@@ -27,18 +27,11 @@
       <main class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Acme engineering organization</p>
+            <p class="eyebrow">Synthetic engineering organization</p>
             <h1 id="page-title">Security overview</h1>
           </div>
           <div class="top-actions">
-            <label class="role-control">Demo role
-              <select id="role-select">
-                <option value="security">Security engineer</option>
-                <option value="developer">Developer</option>
-                <option value="manager">Engineering manager</option>
-              </select>
-            </label>
-            <button class="button button-primary" id="ingest-button" type="button">Ingest report</button>
+            <span class="permission-hint">Read-only projected data</span>
           </div>
         </header>
 
@@ -87,7 +80,7 @@
         </section>
 
         <section class="view hidden" id="view-exceptions">
-          <div class="section-intro"><div><p class="eyebrow">Risk governance</p><h2>Time-bound exceptions</h2></div><button class="button button-primary" id="request-exception-button" type="button">Request exception</button></div>
+          <div class="section-intro"><div><p class="eyebrow">Risk governance</p><h2>Time-bound exceptions</h2></div><span class="permission-hint">Free-text details redacted</span></div>
           <div class="exception-grid" id="exceptions-list"></div>
         </section>
       </main>
@@ -98,29 +91,6 @@
       <div class="drawer-body" id="drawer-body"></div>
     </aside>
     <div class="scrim hidden" id="scrim"></div>
-
-    <dialog id="ingest-dialog">
-      <form method="dialog" class="dialog-form" id="ingest-form">
-        <header><div><p class="eyebrow">Scanner integration</p><h2>Ingest security report</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></header>
-        <label>Project<select id="ingest-project" required></select></label>
-        <label>Scanner<select id="ingest-tool"><option value="semgrep">Semgrep SAST</option><option value="trivy-sca">Trivy SCA</option><option value="trivy-container">Trivy container</option><option value="gitleaks">Gitleaks</option></select></label>
-        <label>Report JSON<textarea id="ingest-report" rows="9" spellcheck="false" required></textarea></label>
-        <p class="form-message" id="ingest-message"></p>
-        <footer><button class="button button-secondary" value="cancel">Cancel</button><button class="button button-primary" id="submit-ingest" type="submit">Evaluate report</button></footer>
-      </form>
-    </dialog>
-
-    <dialog id="exception-dialog">
-      <form method="dialog" class="dialog-form" id="exception-form">
-        <header><div><p class="eyebrow">Risk acceptance</p><h2>Request exception</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></header>
-        <label>Finding<select id="exception-finding" required></select></label>
-        <label>Reason<textarea id="exception-reason" rows="3" required></textarea></label>
-        <label>Compensating control<textarea id="exception-control" rows="3" required></textarea></label>
-        <label>Expiration<input id="exception-expiration" type="date" required></label>
-        <p class="form-message" id="exception-message"></p>
-        <footer><button class="button button-secondary" value="cancel">Cancel</button><button class="button button-primary" type="submit">Submit request</button></footer>
-      </form>
-    </dialog>
 
     <div class="toast hidden" id="toast" role="status"></div>
     <script type="module" src="/app.js"></script>

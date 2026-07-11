@@ -1,6 +1,6 @@
 # API reference
 
-All write examples use `X-Demo-Role`. Valid values are `security`, `developer` and `manager`.
+All write examples use `X-Demo-Role`. Valid values are `security`, `developer` and `manager`; missing or invalid values are read-only. The header is a demo mechanism, not authentication. In `Production`, only `/api/health` remains available unless the insecure demo is explicitly enabled.
 
 ## Overview
 
@@ -75,4 +75,4 @@ Run responses include the project, scanners and current policy decision.
 }
 ```
 
-Supported tool values: `semgrep`, `trivy-sca`, `trivy-container`, `gitleaks`.
+Supported tool value: `semgrep`. Reports must contain a `results` array with at most 1,000 objects and fit inside the 512 KiB request limit. Unsupported scanners are rejected instead of being recorded as passed. Branch, commit, author, path and message text are bounded, stripped of control characters and redact common inline secret patterns.

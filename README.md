@@ -31,6 +31,8 @@ With Docker:
 docker compose up -d --build
 ```
 
+O Compose habilita explicitamente o modelo demonstrativo, mas publica somente em `127.0.0.1`. Em `Production`, a API fica bloqueada sem `ALLOW_INSECURE_DEMO=true`; uma implantação real não deve definir essa variável.
+
 ## Tests
 
 ```bash
@@ -63,6 +65,8 @@ The role selector exists to demonstrate server-side authorization decisions with
 
 Production deployment would replace `X-Demo-Role` with claims from an OIDC identity provider.
 
+`X-Demo-Role` is never authentication. Use only the synthetic seed and sanitized scanner samples; do not paste real reports, credentials, repository URLs, author identities or secret values into the demo. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
+
 ## Delivery pipeline
 
 - .NET build and xUnit tests
@@ -76,3 +80,5 @@ Production deployment would replace `X-Demo-Role` with claims from an OIDC ident
 ## Current scope
 
 Data is intentionally stored in memory to keep the demo deterministic and dependency-free. The repository boundary is designed so a PostgreSQL adapter, OIDC provider and real GitHub/GitLab webhooks can be added without changing the policy engine.
+
+The verified security changes and residual limits are recorded in [SECURITY_AUDIT.md](SECURITY_AUDIT.md).

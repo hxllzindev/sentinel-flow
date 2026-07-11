@@ -19,6 +19,7 @@ jobs:
       - run: dotnet restore SentinelFlow.sln
       - run: dotnet build SentinelFlow.sln --configuration Release --no-restore
       - run: dotnet test SentinelFlow.sln --configuration Release --no-build
+      - run: python3 -B scripts/frontend-security-test.py
 
   sast:
     runs-on: ubuntu-latest
