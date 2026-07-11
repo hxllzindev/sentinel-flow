@@ -4,8 +4,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:4000
+      ALLOW_INSECURE_DEMO: "true"
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     read_only: true
     tmpfs:
       - /tmp:size=16m,noexec,nosuid

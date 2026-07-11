@@ -59,13 +59,16 @@ The API enforces three demo roles:
 - `developer`: finding triage and exception requests
 - `manager`: read only
 
-The role header is explicitly a demo seam. A production design would validate OIDC tokens and map groups to permissions.
+The role header is explicitly a demo seam. The API fails closed in `Production` without explicit opt-in. A production design would validate OIDC tokens and map groups to permissions.
 
 ## Security characteristics
 
 - Strict CSP without inline scripts
 - Frame denial and MIME sniffing protection
-- Two MiB request limit for scanner reports
+- 512 KiB request limit and maximum 1,000 Semgrep results per report
+- Scanner allowlist and project/run consistency checks
+- Bounded, redacted imported text and bounded in-memory collections
+- Serialized access to the mutable in-memory store
 - Output encoding for imported scanner content
 - Allowlisted workflow states and roles
 - Time-bound exception requirement

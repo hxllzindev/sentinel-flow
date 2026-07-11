@@ -57,6 +57,33 @@ public static class PolicyEngine
 
 public static class SecurityQueries
 {
+    public static string ProjectLabel(SecurityStore store, string projectId)
+    {
+        var index = store.Projects.FindIndex(item => item.Id == projectId);
+        return index < 0 ? "Project" : $"Project {index + 1:00}";
+    }
+
+    public static FrontendProject Frontend(SecurityStore store, Project project) =>
+        new(project.Id, ProjectLabel(store, project.Id), project.Environment);
+
+    public static FrontendRun Frontend(SecurityStore store, PipelineRun run)
+    {
+        var enriched = EnrichedRun(store, run);
+        return new(run.Id, run.ProjectId, ProjectLabel(store, run.ProjectId), run.Status,
+            run.CreatedAt, run.DurationSeconds, run.Scanners, enriched.Decision);
+    }
+
+    public static FrontendFinding Frontend(SecurityStore store, Finding finding) =>
+        new(finding.Id, finding.ProjectId, ProjectLabel(store, finding.ProjectId), finding.Scanner,
+            finding.Severity, finding.Category, finding.Status, finding.SlaDueAt);
+
+    public static FrontendException Frontend(SecurityStore store, RiskException exception) =>
+        new(exception.Id, exception.ProjectId, ProjectLabel(store, exception.ProjectId),
+            exception.Status, exception.CreatedAt, exception.ExpiresAt);
+
+    public static FrontendAuditEvent Frontend(AuditEvent auditEvent) =>
+        new(auditEvent.Action, auditEvent.ActorRole, auditEvent.CreatedAt);
+
     public static object Summary(SecurityStore store)
     {
         var openFindings = store.Findings.Where(finding => finding.Status != "resolved").ToList();
@@ -94,12 +121,13 @@ public static class SecurityQueries
         {
             Id = runId,
             ProjectId = project.Id,
-            Branch = string.IsNullOrWhiteSpace(input.Branch) ? project.DefaultBranch : input.Branch,
-            Commit = string.IsNullOrWhiteSpace(input.Commit) ? "manual" : input.Commit,
-            Author = string.IsNullOrWhiteSpace(input.Author) ? "Scanner ingestion" : input.Author,
+            Branch = InputSanitizer.Text(input.Branch, 200, project.DefaultBranch),
+            Commit = InputSanitizer.Text(input.Commit, 120, "manual"),
+            Author = InputSanitizer.Text(input.Author, 120, "Scanner ingestion"),
             CreatedAt = DateTimeOffset.UtcNow.ToString("O")
         };
         store.Runs.Insert(0, run);
+        if (store.Runs.Count > 1000) store.Runs.RemoveRange(1000, store.Runs.Count - 1000);
         return run;
     }
 }
@@ -125,6 +153,12 @@ public static class FindingNormalizer
         _ => "sast"
     };
 
+    public static bool ValidSemgrepReport(JsonElement report)
+    {
+        if (report.ValueKind != JsonValueKind.Object || !report.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array || results.GetArrayLength() > 1000) return false;
+        return results.EnumerateArray().All(result => result.ValueKind == JsonValueKind.Object);
+    }
+
     private static List<Finding> NormalizeSemgrep(JsonElement report, Project project, string runId)
     {
         if (!report.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array) return [];
@@ -132,11 +166,11 @@ public static class FindingNormalizer
         return results.EnumerateArray().Select(result =>
         {
             var extra = result.TryGetProperty("extra", out var extraElement) ? extraElement : default;
-            var semgrepSeverity = extra.ValueKind == JsonValueKind.Object && extra.TryGetProperty("severity", out var severityElement) ? severityElement.GetString() : "WARNING";
+            var semgrepSeverity = extra.ValueKind == JsonValueKind.Object && extra.TryGetProperty("severity", out var severityElement) && severityElement.ValueKind == JsonValueKind.String ? severityElement.GetString()?.ToUpperInvariant() : "WARNING";
             var severity = semgrepSeverity == "ERROR" ? "high" : semgrepSeverity == "INFO" ? "low" : "medium";
-            var path = result.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : "unknown";
-            var line = result.TryGetProperty("start", out var start) && start.TryGetProperty("line", out var lineElement) ? lineElement.GetInt32() : 1;
-            var title = extra.ValueKind == JsonValueKind.Object && extra.TryGetProperty("message", out var message) ? message.GetString() : "Semgrep finding";
+            var path = result.TryGetProperty("path", out var pathElement) && pathElement.ValueKind == JsonValueKind.String ? pathElement.GetString() : "unknown";
+            var line = result.TryGetProperty("start", out var start) && start.ValueKind == JsonValueKind.Object && start.TryGetProperty("line", out var lineElement) && lineElement.TryGetInt32(out var parsedLine) && parsedLine > 0 ? parsedLine : 1;
+            var title = extra.ValueKind == JsonValueKind.Object && extra.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String ? message.GetString() : "Semgrep finding";
             return new Finding
             {
                 Id = $"finding-{Guid.NewGuid()}",
@@ -145,8 +179,8 @@ public static class FindingNormalizer
                 Scanner = "sast",
                 Severity = severity,
                 Category = "code",
-                Title = title ?? "Semgrep finding",
-                Location = $"{path}:{line}",
+                Title = InputSanitizer.Text(title, 500, "Semgrep finding"),
+                Location = $"{InputSanitizer.Text(path, 500, "unknown")}:{line}",
                 Owner = project.Owner,
                 SlaDueAt = PolicyEngine.CalculateSlaDueDate(severity, now)
             };

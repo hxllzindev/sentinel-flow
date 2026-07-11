@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
@@ -43,6 +44,30 @@ public sealed class ApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task BrowserProjectionsOmitRepositoryIdentityAndRawFindings()
+    {
+        var projects = await GetJson("/api/projects");
+        var project = projects.RootElement.GetProperty("projects")[0];
+        Assert.False(project.TryGetProperty("name", out _));
+        Assert.False(project.TryGetProperty("owner", out _));
+        Assert.False(project.TryGetProperty("defaultBranch", out _));
+
+        var runs = await GetJson("/api/runs");
+        var run = runs.RootElement.GetProperty("runs")[0];
+        Assert.False(run.TryGetProperty("branch", out _));
+        Assert.False(run.TryGetProperty("commit", out _));
+        Assert.False(run.TryGetProperty("author", out _));
+        Assert.False(run.TryGetProperty("project", out _));
+
+        var findings = await GetJson("/api/findings");
+        var finding = findings.RootElement.GetProperty("findings")[0];
+        Assert.False(finding.TryGetProperty("title", out _));
+        Assert.False(finding.TryGetProperty("location", out _));
+        Assert.False(finding.TryGetProperty("owner", out _));
+        Assert.False(finding.TryGetProperty("runId", out _));
+    }
+
+    [Fact]
     public async Task ManagerRoleCannotUpdateFinding()
     {
         var request = new HttpRequestMessage(HttpMethod.Patch, "/api/findings/finding-sqli")
@@ -51,6 +76,13 @@ public sealed class ApiTests : IClassFixture<WebApplicationFactory<Program>>
         };
         request.Headers.Add("X-Demo-Role", "manager");
         var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MissingRoleCannotUpdateFinding()
+    {
+        var response = await _client.PatchAsJsonAsync("/api/findings/finding-sqli", new { status = "resolved" });
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
@@ -65,7 +97,8 @@ public sealed class ApiTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await _client.SendAsync(request);
         var payload = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("Payments remediation squad", payload.RootElement.GetProperty("finding").GetProperty("owner").GetString());
+        Assert.Equal("in_progress", payload.RootElement.GetProperty("finding").GetProperty("status").GetString());
+        Assert.False(payload.RootElement.GetProperty("finding").TryGetProperty("owner", out _));
     }
 
     [Fact]
@@ -102,7 +135,65 @@ public sealed class ApiTests : IClassFixture<WebApplicationFactory<Program>>
         var payload = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(1, payload.RootElement.GetProperty("imported").GetInt32());
-        Assert.Equal("project-payments", payload.RootElement.GetProperty("run").GetProperty("project").GetProperty("id").GetString());
+        Assert.Equal("project-payments", payload.RootElement.GetProperty("run").GetProperty("projectId").GetString());
+        Assert.False(payload.RootElement.GetProperty("run").TryGetProperty("branch", out _));
+        Assert.False(payload.RootElement.GetProperty("run").TryGetProperty("commit", out _));
+        Assert.False(payload.RootElement.GetProperty("run").TryGetProperty("author", out _));
+    }
+
+    [Fact]
+    public async Task RejectsUnsupportedScannerAndCrossProjectRunReuse()
+    {
+        var unsupported = new HttpRequestMessage(HttpMethod.Post, "/api/ingest")
+        {
+            Content = JsonContent.Create(new { projectId = "project-payments", tool = "gitleaks", report = new { results = Array.Empty<object>() } })
+        };
+        unsupported.Headers.Add("X-Demo-Role", "security");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.SendAsync(unsupported)).StatusCode);
+
+        var crossProject = new HttpRequestMessage(HttpMethod.Post, "/api/ingest")
+        {
+            Content = JsonContent.Create(new { projectId = "project-portal", tool = "semgrep", runId = "run-1042", report = new { results = Array.Empty<object>() } })
+        };
+        crossProject.Headers.Add("X-Demo-Role", "security");
+        Assert.Equal(HttpStatusCode.Conflict, (await _client.SendAsync(crossProject)).StatusCode);
+    }
+
+    [Fact]
+    public async Task SanitizesImportedFindingText()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/ingest")
+        {
+            Content = JsonContent.Create(new
+            {
+                projectId = "project-payments",
+                tool = "semgrep",
+                runId = "run-redaction-test",
+                branch = "feature/password=real-secret",
+                report = new { results = new[] { new { path = "src/token=abc123.cs", start = new { line = 2 }, extra = new { severity = "ERROR", message = "api_key=top-secret exposed" } } } }
+            })
+        };
+        request.Headers.Add("X-Demo-Role", "security");
+        var response = await _client.SendAsync(request);
+        var payload = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var run = payload.RootElement.GetProperty("run");
+        Assert.False(run.TryGetProperty("branch", out _));
+
+        var detail = await GetJson("/api/runs/run-redaction-test");
+        var finding = detail.RootElement.GetProperty("findings")[0];
+        Assert.False(finding.TryGetProperty("title", out _));
+        Assert.False(finding.TryGetProperty("location", out _));
+        Assert.False(finding.TryGetProperty("owner", out _));
+    }
+
+    [Fact]
+    public async Task ProductionDisablesDemoApiWithoutExplicitOptIn()
+    {
+        await using var productionFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(webHost => webHost.UseEnvironment("Production"));
+        using var productionClient = productionFactory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await productionClient.GetAsync("/api/health")).StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await productionClient.GetAsync("/api/findings")).StatusCode);
     }
 
     [Fact]
